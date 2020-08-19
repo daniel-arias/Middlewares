@@ -2,12 +2,13 @@ const fs = require('fs');
 const express = require('express');
 const moment = require('moment');
 const bodyParser = require('body-parser');
-const { query } = require('express');
 const server = express();
 
 server.listen(3000, () => {
     console.log('Start Server...');
 })
+
+const contactos = []
 
 // middlewares
 
@@ -18,31 +19,65 @@ function writeLog(method, path, query, body) {
 
 
 function logger(req, res, next) {
-    //console.log(req);
-    const {query} = req.query;
-    fs.appendFile('log.txt', writeLog(req.method, req.path, query, req.body), e => {
+    const {method, query, path, body} = req;
+    fs.appendFile('log.txt', writeLog(method, path, JSON.stringify(query), JSON.stringify(body)), e => {
         if (e) throw e;
         console.log('eureka');
     })
     next();
 }
 
-server.use(logger)
+function ContactosVerifier(req, res, next)
+{
+    const {nombre, apellido, email} = req.body;
+    if(contactos.find(contacto => contacto.email === email ))
+    {
+        res.status(400)
+        .send('contacto already exists');
+    }
+    else
+    {        
+        console.log('paso ContactosVerifier');
+        next();
+    }
+}
+
+function BodyVerifier(req, res, next)
+{
+    const {nombre, apellido, email} = req.body;
+    if (!nombre || !apellido || !email) {
+        res.status(400)
+        .send('missing info in body')
+    } else {
+        console.log('paso BodyVerifier');
+        next();
+    }
+}
+
+function DemoVerifier(req, res, next)
+{
+    const {version} = req.query;
+    if (version && isNaN(parseInt(version)) && version < 5) {
+        res.status(400)
+        .send('missing info in body')
+    } else {
+        console.log('paso BodyVerifier');
+        next();
+    }
+}
+
+
 server.use(bodyParser.json())
+server.use(logger)
 
 // routes
-server.get('/demo', (req, res) => {
+server.get('/demo',DemoVerifier, (req, res) => {
     res.json({ res: 'hola mundo' });
 })
 
-server.post('/contacto', (req, res) => {
-    console.log(req.body);
-    const body = req.body;
-    if (body) {
-        res.status(200)
-        .send('Todo bien')
-    } else {
-        res.status(700)        
-        .send('no body found')
-    }
+server.post('/contacto', BodyVerifier,ContactosVerifier , (req, res) => {
+    contactos.push(req.body)
+    contactos.forEach(contacto => console.log(contacto.nombre));
+    res.status(200)
+    .send('all good')
 })
